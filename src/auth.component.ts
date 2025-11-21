@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, input, output, signal, inject } from '@angular/core';
+import { Component, ChangeDetectionStrategy, input, output, signal, inject, WritableSignal } from '@angular/core';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { AuthService } from './auth.service';
 import { NgIf } from '@angular/common';
@@ -7,16 +7,130 @@ import { NgIf } from '@angular/common';
   selector: 'app-auth',
   standalone: true,
   imports: [ReactiveFormsModule, NgIf],
-  templateUrl: './auth.component.html',
+  template: `
+<div class="relative z-50" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+  <!-- Backdrop -->
+  <div (click)="closeModal()" class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+
+  <div class="fixed inset-0 z-10 w-screen overflow-y-auto">
+    <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+      <div class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md">
+        <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
+          <div class="sm:flex sm:items-start w-full">
+            <div class="mt-3 text-center sm:ml-0 sm:mt-0 sm:text-left w-full">
+              <div class="flex justify-between items-center">
+                <h3 class="text-xl font-semibold leading-6 text-gray-900" id="modal-title">
+                  {{ mode() === 'login' ? 'Sign in to your account' : 'Create a new account' }}
+                </h3>
+                <button (click)="closeModal()" type="button" class="p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+                  <span class="sr-only">Close</span>
+                   <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div class="mt-6">
+                <!-- Login Form -->
+                @if (mode() === 'login') {
+                  <form [formGroup]="loginForm" (ngSubmit)="onLoginSubmit()">
+                    <div class="space-y-4">
+                      <div>
+                        <label for="email" class="block text-sm font-medium leading-6 text-gray-900">Email address</label>
+                        <div class="mt-2">
+                          <input formControlName="email" id="email" name="email" type="email" autocomplete="email" required class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-black sm:text-sm sm:leading-6">
+                          @if (loginForm.get('email')?.invalid && (loginForm.get('email')?.dirty || loginForm.get('email')?.touched)) {
+                            <p class="mt-1 text-sm text-red-600">Please enter a valid email address.</p>
+                          }
+                        </div>
+                      </div>
+
+                      <div>
+                        <label for="password" class="block text-sm font-medium leading-6 text-gray-900">Password</label>
+                        <div class="mt-2">
+                          <input formControlName="password" id="password" name="password" type="password" autocomplete="current-password" required class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-black sm:text-sm sm:leading-6">
+                           @if (loginForm.get('password')?.invalid && (loginForm.get('password')?.dirty || loginForm.get('password')?.touched)) {
+                            <p class="mt-1 text-sm text-red-600">Password is required.</p>
+                          }
+                        </div>
+                      </div>
+                      
+                      @if (errorMessage()) {
+                         <p class="mt-1 text-sm text-red-600 text-center">{{ errorMessage() }}</p>
+                      }
+
+                      <div>
+                        <button type="submit" [disabled]="loginForm.invalid" class="w-full flex justify-center rounded-md bg-black px-3 py-2 text-sm font-semibold leading-6 text-white shadow-sm hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:opacity-50 disabled:cursor-not-allowed">Sign in</button>
+                      </div>
+                    </div>
+                  </form>
+                }
+
+                <!-- Registration Form -->
+                @if (mode() === 'register') {
+                  <form [formGroup]="registerForm" (ngSubmit)="onRegisterSubmit()">
+                    <div class="space-y-4">
+                      <div>
+                        <label for="reg-email" class="block text-sm font-medium leading-6 text-gray-900">Email address</label>
+                        <div class="mt-2">
+                          <input formControlName="email" id="reg-email" name="email" type="email" required class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-black sm:text-sm sm:leading-6">
+                           @if (registerForm.get('email')?.invalid && (registerForm.get('email')?.dirty || registerForm.get('email')?.touched)) {
+                            <p class="mt-1 text-sm text-red-600">Please enter a valid email address.</p>
+                          }
+                        </div>
+                      </div>
+
+                      <div>
+                        <label for="reg-password" class="block text-sm font-medium leading-6 text-gray-900">Password</label>
+                        <div class="mt-2">
+                          <input formControlName="password" id="reg-password" name="password" type="password" required class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-black sm:text-sm sm:leading-6">
+                           @if (registerForm.get('password')?.invalid && (registerForm.get('password')?.dirty || registerForm.get('password')?.touched)) {
+                            <p class="mt-1 text-sm text-red-600">Password must be at least 8 characters long.</p>
+                          }
+                        </div>
+                      </div>
+                      
+                       @if (errorMessage()) {
+                         <p class="mt-1 text-sm text-red-600 text-center">{{ errorMessage() }}</p>
+                      }
+
+                      <div>
+                        <button type="submit" [disabled]="registerForm.invalid" class="w-full flex justify-center rounded-md bg-black px-3 py-2 text-sm font-semibold leading-6 text-white shadow-sm hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:opacity-50 disabled:cursor-not-allowed">Create account</button>
+                      </div>
+                    </div>
+                  </form>
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bg-gray-50 px-4 py-3 sm:flex sm:px-6 justify-center">
+            @if (mode() === 'login') {
+              <p class="text-sm text-gray-600">
+                Don't have an account? 
+                <button (click)="switchToRegister()" class="font-semibold text-black hover:underline">Sign up</button>
+              </p>
+            } @else {
+              <p class="text-sm text-gray-600">
+                Already have an account? 
+                <button (click)="switchToLogin()" class="font-semibold text-black hover:underline">Sign in</button>
+              </p>
+            }
+        </div>
+      </div>
+    </div>
+  </div>
+</div>`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AuthComponent {
-  mode = input.required<'login' | 'register'>();
+  initialMode = input.required<'login' | 'register'>({ alias: 'mode' });
   close = output<void>();
 
   private fb = inject(FormBuilder);
   private authService = inject(AuthService);
 
+  mode: WritableSignal<'login' | 'register'>;
   errorMessage = signal<string | null>(null);
 
   loginForm = this.fb.group({
@@ -28,6 +142,10 @@ export class AuthComponent {
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(8)]],
   });
+
+  constructor() {
+    this.mode = signal(this.initialMode());
+  }
 
   closeModal() {
     this.close.emit();
